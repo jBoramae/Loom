@@ -1,3 +1,4 @@
+import { Socket } from "dgram";
 import express from "express";
 import http from "http";
 import WebSocket, { WebSocketServer } from "ws";
@@ -45,21 +46,51 @@ app.get("/*", (req, res) => res.redirect("/"));
 const handleListening = () => console.log(`Listening on http://localhost:4000`);
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
+server.listen(4000, handleListening);
 // 같은 서버에서 http와 websocket 모두 작동시키는 방법(같은 PORT)
 
-server.listen(4000, handleListening);
+const sockets = [];
 
+function onSocketClose() {
+   console.log("Disconnected from Browser ❌");
+}
+
+wss.on("connection", (socket) => {
+   // console.log(socket);
+   // socket: 연결된 브라우저
+
+   sockets.push(socket);
+
+   console.log("Connected to Browser ✅");
+   socket.on("close", onSocketClose);
+   socket.on("message", (msg) => {
+      const message = JSON.parse(msg);
+
+      switch (message.type) {
+         case "new_message":
+            sockets.forEach((aSocket) =>
+               aSocket.send(message.payload.toString("utf8"))
+            );
+         case "nickname":
+            socket["nickname"] = message.payload;
+      }
+   });
+});
 /**
- * express: http server
- * ws: webSocket server
+ * wss.on("connection", callBack fn)
+ *    => .on 메서드: backend에 연결된 사람의 정보를 제공(socket)
+ *    => connection이 이루어지면 callback fn으로 socket을 받음 => socket이란, 연결된 client
  */
 
 /**
  * WebSocket: http같은 프로토콜의 한 종류
  * WebSocket을 사용하려 하고 + 서버가 지원하면 wss하면 됨.
- *    (ex) wss://localhost:4000/, wss: Secure Web Socket
+ *    (ex) wss://localhost:4000/, wss: Web Socket Secure
  *    (ex2) ss://localhost:4000/, ws: Web Socket
  *
  * client가 sever로 request => server는 accept/deny함.
  * accept한 경우 연결 성립 => 양방향성 통신 가능해짐.
+ *
+ * express: http server
+ * ws: webSocket server
  */

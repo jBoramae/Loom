@@ -10,6 +10,11 @@ html(lang="en")
       header 
          h1 Loom
       main 
-         h3 Welcome to Loom
-         button Go
+         form#nickname
+            input(type="text", placeholder="Choose a nickname", required)
+            button Save
+         ul
+         form#message
+            input(type="text", placeholder="Write a msg", required)
+            button Send
       script(src="/public/js/app.js") 
