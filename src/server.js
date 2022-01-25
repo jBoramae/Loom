@@ -2,6 +2,7 @@ import { Socket } from "dgram";
 import express from "express";
 import http from "http";
 import WebSocket, { WebSocketServer } from "ws";
+import SocketIO from "socket.io";
 
 const app = express();
 
@@ -38,23 +39,29 @@ app.get("/", (req, res) => res.render("home"));
 app.get("/*", (req, res) => res.redirect("/"));
 // catch-all url: app.get("/*", (req, res) => res.redirect("/"));
 
-// const PORT = 4000;
-// const handleListening = () =>
-//    console.log(`✅ Server listening on port http://localhost:${PORT}/ 🚀`);
-// app.listen(PORT, handleListening);
+const httpServer = http.createServer(app);
+const wsServer = SocketIO(httpServer);
+// const wss = new WebSocket({ server });
 
-const handleListening = () => console.log(`Listening on http://localhost:4000`);
-const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
-server.listen(4000, handleListening);
+const PORT = 4000;
+const handleListening = () =>
+   console.log(`Listening on http://localhost:${PORT}`);
+httpServer.listen(PORT, handleListening);
 // 같은 서버에서 http와 websocket 모두 작동시키는 방법(같은 PORT)
 
+wsServer.on("connection", (socket) => {
+   socket.onAny((event) => {
+      console.log(`Socket Event: ${event}`);
+   });
+   socket.on("enter_room", (roomName, done) => {
+      socket.join(roomName);
+      done();
+   });
+});
+
+/* 
+const wss = new WebSocketServer({ server });
 const sockets = [];
-
-function onSocketClose() {
-   console.log("Disconnected from Browser ❌");
-}
-
 wss.on("connection", (socket) => {
    // console.log(socket);
    // socket: 연결된 브라우저
@@ -79,7 +86,7 @@ wss.on("connection", (socket) => {
             socket["nickname"] = message.payload;
       }
    });
-});
+}); */
 /**
  * wss.on("connection", callBack fn)
  *    => .on 메서드: backend에 연결된 사람의 정보를 제공(socket)
@@ -97,4 +104,8 @@ wss.on("connection", (socket) => {
  *
  * express: http server
  * ws: webSocket server
+ *
+ * 이전에는 브라우저가 주는 WebSocket API를 사용,
+ * 하지만 브라우저가 주는 webSocket은 socketIO와 호환 X
+ * => 브라우저에도 SocketIO를 import 해줘야함.
  */

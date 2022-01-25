@@ -10,11 +10,15 @@ html(lang="en")
       header 
          h1 Loom
       main 
-         form#nickname
-            input(type="text", placeholder="Choose a nickname", required)
-            button Save
-         ul
-         form#message
-            input(type="text", placeholder="Write a msg", required)
-            button Send
+         div#welcome
+            form
+               input(type="text", placeholder="Room name", required)
+               button Enter Room
+         div#room 
+            h3
+            ul 
+            form
+               input(type="text", placeholder="Message...", required)
+               button Send
+      script(src="/socket.io/socket.io.js") 
       script(src="/public/js/app.js") 
