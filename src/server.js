@@ -50,13 +50,33 @@ httpServer.listen(PORT, handleListening);
 // 같은 서버에서 http와 websocket 모두 작동시키는 방법(같은 PORT)
 
 wsServer.on("connection", (socket) => {
+   socket["nickname"] = "Anonymous";
+
    socket.onAny((event) => {
       console.log(`Socket Event: ${event}`);
    });
-   socket.on("enter_room", (roomName, done) => {
+
+   socket.on("enter_room", (roomName, nickname, done) => {
+      socket["nickname"] = nickname;
       socket.join(roomName);
       done();
+      socket.to(roomName).emit("welcome", socket.nickname);
    });
+
+   socket.on("disconnecting", () => {
+      // client가 disconnect 하려고함(아직 disconnected X)
+      socket.rooms.forEach((room) =>
+         socket.to(room).emit("bye", socket.nickname)
+      );
+      // 각 arg에 대해서 bye 이벤트를 emit?
+   });
+
+   socket.on("new_message", (msg, roomName, done) => {
+      socket.to(roomName).emit("new_message", `${socket.nickname}: ${msg}`);
+      done();
+   });
+
+   socket.on("nickname", (nickname) => (socket["nickname"] = nickname));
 });
 
 /* 
@@ -87,6 +107,7 @@ wss.on("connection", (socket) => {
       }
    });
 }); */
+
 /**
  * wss.on("connection", callBack fn)
  *    => .on 메서드: backend에 연결된 사람의 정보를 제공(socket)
