@@ -1,8 +1,7 @@
-import { Socket } from "dgram";
 import express from "express";
 import http from "http";
-import WebSocket, { WebSocketServer } from "ws";
-import SocketIO from "socket.io";
+import { Server } from "socket.io";
+import { instrument } from "@socket.io/admin-ui";
 
 const app = express();
 
@@ -40,8 +39,49 @@ app.get("/*", (req, res) => res.redirect("/"));
 // catch-all url: app.get("/*", (req, res) => res.redirect("/"));
 
 const httpServer = http.createServer(app);
-const wsServer = SocketIO(httpServer);
+const wsServer = new Server(httpServer, {
+   cors: {
+      origin: ["https://admin.socket.io"],
+      credential: true,
+   },
+});
+
+instrument(wsServer, {
+   auth: false,
+});
+
+// const wsServer = SocketIO(httpServer);
 // const wss = new WebSocket({ server });
+
+function publicRooms() {
+   /* object: 키가 있는 컬렉션 저장
+      array: 순서가 있는 컬렉션 저장
+      Map? => 키가 있는 데이터를 저장하며, 키에 다양한 자료형을 저장할 수 있음(객체도 가능).
+         new Map() - 맵 생성.
+         map.set(key, value) - key를 이용해 value를 저장.
+         map.get(key) - key에 해당하는 값을 반환.
+      Set? => 중복을 허용하지 않는 값을 모아둔 특별한 컬렉션. 
+    */
+
+   const { sids } = wsServer.sockets.adapter;
+   const { rooms } = wsServer.sockets.adapter;
+   // const {sockets: {adapter: {sids, rooms}}} = wsServer;
+
+   const publicRooms = [];
+   rooms.forEach((_, key) => {
+      if (sids.get(key) === undefined) {
+         publicRooms.push(key);
+         // rooms의 각 키마다 sids에도 key가 있는지 검사 => 없는 경우 publicRoom, 그러므로 publicRoom array에 저장. / 존재하는 경우 private Room.
+      }
+   });
+
+   return publicRooms;
+}
+
+function countRoom(roomName) {
+   return wsServer.sockets.adapter.rooms.get(roomName)?.size;
+   // get(roomName)에 성공하면 .size를 반환?
+}
 
 const PORT = 4000;
 const handleListening = () =>
@@ -50,7 +90,9 @@ httpServer.listen(PORT, handleListening);
 // 같은 서버에서 http와 websocket 모두 작동시키는 방법(같은 PORT)
 
 wsServer.on("connection", (socket) => {
+   // console.log(wsServer.sockets.adapter);
    socket["nickname"] = "Anonymous";
+   wsServer.sockets.emit("room_change", publicRooms());
 
    socket.onAny((event) => {
       console.log(`Socket Event: ${event}`);
@@ -60,15 +102,21 @@ wsServer.on("connection", (socket) => {
       socket["nickname"] = nickname;
       socket.join(roomName);
       done();
-      socket.to(roomName).emit("welcome", socket.nickname);
+      socket.to(roomName).emit("welcome", socket.nickname, countRoom(roomName)); // 메시지를 하나의 소켓에만 전송
+      wsServer.sockets.emit("room_change", publicRooms()); // 메시지를 모든 소켓에 전송
    });
 
    socket.on("disconnecting", () => {
       // client가 disconnect 하려고함(아직 disconnected X)
-      socket.rooms.forEach((room) =>
-         socket.to(room).emit("bye", socket.nickname)
+      socket.rooms.forEach(
+         (room) =>
+            socket.to(room).emit("bye", socket.nickname, countRoom(room) - 1)
+         // 각 arg에 대해서 bye 이벤트를 emit?
       );
-      // 각 arg에 대해서 bye 이벤트를 emit?
+   });
+
+   socket.on("disconnect", () => {
+      wsServer.sockets.emit("room_change", publicRooms());
    });
 
    socket.on("new_message", (msg, roomName, done) => {
@@ -129,4 +177,8 @@ wss.on("connection", (socket) => {
  * 이전에는 브라우저가 주는 WebSocket API를 사용,
  * 하지만 브라우저가 주는 webSocket은 socketIO와 호환 X
  * => 브라우저에도 SocketIO를 import 해줘야함.
+ *
+ * Adapter: MongoDB를 사용해 서버간의 통신을 해줌.
+ *    => 하나의 서버에 여러개의 브라우저의 커넥션이 생김.
+ *       => 다른 서버의 경우 통신이 불가능한 것을 해결.
  */
